@@ -1,0 +1,397 @@
+<?php
+
+/**
+ * Database Backups
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2014 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ */
+
+class ProcessDatabaseBackups extends Process {
+
+	/**
+	 * Return information about this module (required)
+	 *
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Database Backups', 
+			'summary' => 'Create and/or restore database backups.', 
+			'version' => 1, 
+			'author' => 'Ryan Cramer', 
+			'icon' => 'database', 
+			'permission' => 'db-backup', 
+			'permissions' => array(
+				'db-backup' => 'Manage database backups (recommended for superuser only)',
+				),
+			'page' => array(
+				'name' => 'db-backups', 
+				'parent' => 'setup', 
+				'title' => 'DB Backups',
+				),
+			'requires' => 'ProcessWire>=2.4.14',
+			); 
+	}
+
+	/**
+	 * Instance of WireDatabaseBackup	
+	 *
+	 */
+	protected $backup = null; 
+
+	/**
+	 * Shared translation labels
+	 *
+	 */
+	protected $labels = array();
+
+	/**
+	 * This is an optional initialization function called before any execute functions.
+	 *
+	 */
+	public function init() {
+		parent::init(); // required
+		$this->backup = $this->wire('database')->backups();
+		$this->labels = array(
+			"download" => $this->_('Download'),
+			"delete" => $this->_('Delete'),
+			"restore" => $this->_('Restore'),
+			"upload" => $this->_('Upload'), 
+			);
+	}
+
+	protected function backupPath($short = false) {
+		$path = $this->backup->getPath();
+		if($short) $path = str_replace($this->wire('config')->paths->root, '/', $path); 
+		return $path;
+	}
+
+	protected function getBackupFiles($onlyID = '') {
+		$files = array();
+		$n = 0; 
+		foreach($this->backup->getFiles() as $file) {
+			$id = "$n:$file";
+			if($onlyID && $id != $onlyID) continue; 
+			$info = $this->backup->getFileInfo($file); 
+			$info['id'] = $id; 
+			$files[$id] = $info; 
+			$n++;
+		}
+		return $files; 
+	}
+
+	protected function getFile() {
+		$id = $this->input->get('id'); 
+		if(is_null($id)) throw new WireException("No file specified"); 
+		$files = $this->getBackupFiles();
+		if(!isset($files[$id])) throw new WireException("Unrecognized file"); 
+		$file = $files[$id];
+		return $file; 
+	}
+
+	/**
+	 * This function is executed when a page with your Process assigned is accessed. 
+ 	 *
+	 * This can be seen as your main or index function. You'll probably want to replace
+	 * everything in this function. 
+	 *
+	 */
+	public function ___execute() {
+
+		$out = '';
+		$numFiles = 0;
+		$user = $this->wire('user');
+		$table = $this->modules->get('MarkupAdminDataTable'); 
+		$table->setEncodeEntities(false); 
+		$table->headerRow(array(
+			$this->_x('file', 'th'),
+			$this->_x('description', 'th'), 
+			$this->_x('date', 'th'), 
+			$this->_x('tables', 'th'), 
+			$this->_x('rows', 'th'),
+			$this->_x('bytes', 'th'), 
+			));
+
+		foreach($this->getBackupFiles() as $id => $file) {
+			$numFiles++;
+			$numTables = $file['numTables']; 
+			if($numTables && !count($file['tables'])) $numTables .= " " . $this->_('(all)'); 
+			
+			$table->row(array(
+				$file['basename'] => "./info/?id=$id",
+				$file['description'], 
+				wireRelativeTimeStr($file['time'] ? $file['time'] : $file['mtime']), 
+				$numTables, 
+				number_format($file['numInserts']), 
+				number_format($file['size']), 
+				));
+		}
+
+		if(!$numFiles) $out .= "<h2>" . $this->_('No database backup files yet.') . "</h2>";
+		$out .= $table->render();	
+
+		$f = $this->modules->get('InputfieldButton'); 
+		$f->value = $this->_('New Backup'); 
+		$f->href = "./backup/"; 
+		$f->addClass('head_button_clone'); 
+		$out .= $f->render();
+
+		$f = $this->modules->get('InputfieldButton'); 
+		$f->value = $this->labels['upload'];
+		$f->href = "./upload/"; 
+		$f->addClass('ui-priority-secondary'); 
+		$out .= $f->render();
+
+		return $out; 
+
+	}	
+
+	public function ___executeUpload() {
+
+		$form = $this->wire('modules')->get('InputfieldForm');
+
+		$f = $this->modules->get("InputfieldFile");
+		$f->name = 'upload_file';
+		$f->label = $this->_('Upload File'); 
+		$f->extensions = 'sql';
+		$f->maxFiles = 0;
+		$f->unzip = 1; 
+		$f->overwrite = false;
+		$f->destinationPath = $this->backupPath();
+		$form->add($f);
+
+		$b = $this->modules->get('InputfieldSubmit');
+		$b->attr('name', 'submit_upload_file'); 
+		$b->attr('value', $this->labels['upload']); 
+		$form->add($b); 
+
+		if($this->input->post('submit_upload_file')) {
+			$form->processInput($this->input->post); 
+			foreach($f->value as $pagefile) {
+				$this->message("Added file: $pagefile->basename"); 
+			}
+			$this->session->redirect('../'); 
+		}
+
+		$out = "<h2>" . $this->_('Add new SQL database dump file') . "</h2>";
+		$out .= $form->render();
+
+		return $out; 
+	}
+
+	public function ___executeInfo() {
+
+		$file = $this->getFile();
+		$info = $this->backup->getFileInfo($file['pathname']); 
+		$info = array_merge($file, $info); 
+		$user = $this->wire('user');
+
+		if($info['valid']) {
+			$info['valid'] = $this->_('Yes! Confirmed valid begin and end of file.'); 
+			if(!count($info['tables'])) $info['tables'] = array($this->_('All Tables')); 
+		} else {
+			$info['valid'] = $this->_('Unable to confirm if valid file (likely not created by this tool)'); 
+		}
+
+		unset($info['basename'], $info['id']); 
+		$info['pathname'] = str_replace($this->wire('config')->paths->root, '/', $info['pathname']); 
+
+		if(empty($info['time'])) {
+			$info['mtime'] = date('Y-m-d H:i:s') . " (" . wireRelativeTimeStr($info['mtime']) . ")";
+		} else {
+			unset($info['mtime']); 
+			$time = strtotime($info['time']); 
+			$info['time'] = "$info[time] (" . wireRelativeTimeStr($time) . ")";
+		}
+
+		$info['size'] = number_format($info['size']) . " " . $this->_x('bytes', 'file-details'); 
+		
+		$table = $this->modules->get('MarkupAdminDataTable'); 
+		foreach($info as $key => $value) {
+			if(is_array($value)) $value = implode(', ', $value); 
+			if(!strlen($value)) continue; 
+			$table->row(array($key, $value)); 
+		}
+
+		$out = "<h2>$file[basename]</h2>" . $table->render();
+
+		$actions = array(
+			"../download/?id=$file[id]" => $this->labels['download'], 
+			"../delete/?id=$file[id]" => $this->labels['delete'], 
+			"../restore/?id=$file[id]" => $this->labels['restore'],
+			);
+
+		$n = 0;
+		foreach($actions as $href => $label) {
+			$f = $this->wire('modules')->get('InputfieldButton'); 
+			$f->href = $href; 
+			$f->value = $label; 
+			if($n) $f->addClass('ui-priority-secondary'); 
+				else $f->addClass('head_button_clone'); 
+			$out .= $f->render();
+			$n++;
+		}
+
+		return $out; 
+	}
+
+	public function ___executeBackup() {
+
+		$post = $this->wire('input')->post; 
+		$allTables = $this->backup->getAllTables();
+
+		if($post->submit_backup && ($post->backup_all || count($post->tables))) {
+
+			$database = $this->wire('database'); 
+
+			$filename = basename($this->wire('sanitizer')->filename($post->backup_name), '.sql') . '.sql';
+			$_filename = basename($filename, '.sql'); 
+			if(preg_match('/^(.+)-(\d+)$/', $_filename, $matches)) {
+				$_filename = $matches[1]; 
+				$n = $matches[2];
+			} else {
+				$n = 0; 
+			}
+			while(file_exists($this->backupPath() . $filename)) {
+				$filename = $_filename . "-" . (++$n) . ".sql";
+			}
+
+			$options = array(
+				'filename' => $filename, 
+				'description' => $this->wire('sanitizer')->text($post->description), 
+				); 
+
+			if(!$post->backup_all) {
+				// selective tables
+				$options['tables'] = array();
+				foreach($post->tables as $table) {
+					if(!isset($allTables[$table])) continue; 
+					$options['tables'][] = $allTables[$table];
+				}
+			}
+
+			$file = $this->backup->backup($options); 
+			if($file) $this->message($this->_('Saved new backup:') . " $file"); 
+			return $this->session->redirect('../'); 
+		}
+
+		$form = $this->wire('modules')->get('InputfieldForm'); 	
+
+		$f = $this->wire('modules')->get('InputfieldName'); 
+		$f->attr('name', 'backup_name');
+		$f->label = $this->_('Backup Name'); 
+		$f->description = $this->_('This will be used for the backup filename. The extension .sql will be added to it automatically.'); 
+		$f->attr('value', $this->wire('config')->dbName . '_' . date('Y-m-d')); 
+		$form->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldText'); 
+		$f->attr('name', 'description');
+		$f->label = $this->_('Optional Backup Description'); 
+		$form->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldCheckbox');
+		$f->attr('name', 'backup_all'); 
+		$f->label = $this->_('Backup all tables?'); 
+		$f->attr('value', 1); 
+		$f->attr('checked', 'checked'); 
+		$form->add($f); 
+
+		$f = $this->wire('modules')->get('InputfieldSelectMultiple'); 
+		$f->attr('name', 'tables');
+		$f->label = $this->_('Tables'); 
+		$f->description = $this->_('By default, the export will include all tables. If you only want certain tables to be included, select them below.'); 
+		foreach($allTables as $table) $f->addOption($table, $table); 
+		$f->attr('value', $allTables); 
+		$f->showIf = 'backup_all=0';
+		$form->add($f);
+
+		$f = $this->wire('modules')->get('InputfieldSubmit');
+		$f->attr('name', 'submit_backup');
+		$form->add($f); 
+
+		return $form->render() . "<p class='detail'>" . $this->_('Please be patient after clicking submit. Backups may take some time, depending on how much there is to backup.') . "</p>";
+
+	}
+
+	public function ___executeDownload() {
+		$file = $this->getFile();
+		wireSendFile($file['pathname'], array('forceDownload' => true)); 
+	}
+
+	public function ___executeDelete() {
+
+		$this->headline($this->_('Delete Backup')); 
+		$file = $this->getFile();
+
+		if($this->input->post('submit_delete')) {
+
+			if($this->input->post('delete_confirm')) { 
+				if(file_exists($file['pathname'])) {
+					unlink($file['pathname']);
+					$this->message(sprintf($this->_('Deleted: %s'), "$file[basename]")); 
+				}
+			} 
+
+			$this->session->redirect('../'); 
+		
+		} else {
+
+			$form = $this->modules->get('InputfieldForm'); 
+			$form->action = "./?id=$file[id]";
+			$form->description = sprintf($this->_('Delete %s?'), $file['basename']); 
+			$f = $this->modules->get('InputfieldCheckbox'); 
+			$f->attr('name', 'delete_confirm');
+			$f->label = $this->_('Check the box to confirm'); 
+			$form->add($f); 
+			$f = $this->modules->get('InputfieldSubmit'); 
+			$f->attr('name', 'submit_delete'); 
+			$form->add($f); 
+			return $form->render();
+		}
+	}
+
+	public function ___executeRestore() {
+
+		$this->headline($this->_('Restore Backup')); 
+		$file = $this->getFile();
+
+		if($this->input->post('submit_restore')) {
+
+			if($this->input->post('restore_confirm') && file_exists($file['pathname'])) { 
+				$success = $this->backup->restore($file['basename']); 
+				if($success) {
+					$this->message(sprintf($this->_('Restored: %s'), "$file[basename]")); 
+					$this->session->redirect('../'); 
+				} else {
+					$this->error(sprintf($this->_('Error restoring: %s'), "$file[pathname]"));
+				}
+			} 
+
+		} else {
+
+			$form = $this->modules->get('InputfieldForm'); 
+			$form->action = "./?id=$file[id]";
+			$form->description = $this->_('Warning: the current database will be destroyed and replaced (this has potential to break your site!)');
+			$f = $this->modules->get('InputfieldCheckbox'); 
+			$f->attr('name', 'restore_confirm');
+			$f->label = sprintf($this->_('Restore %s?'), $file['basename']); 
+			$form->add($f); 
+			$f = $this->modules->get('InputfieldSubmit'); 
+			$f->attr('name', 'submit_restore'); 
+			$form->add($f); 
+			return $form->render();
+		}
+	}
+
+	public function ___uninstall() {
+		$path = $this->backupPath(true);
+		$this->error("Please note that the backup files in $path remain. If you don't want them there, please remove them manually.", Notice::warning); 
+		parent::___uninstall();
+	}
+
+}
+
