@@ -13,32 +13,6 @@
 
 class ProcessDatabaseBackups extends Process {
 
-	const minVersion = '2.4.15';
-
-	/**
-	 * Return information about this module (required)
-	 *
-	 */
-	public static function getModuleInfo() {
-		return array(
-			'title' => 'Database Backups', 
-			'summary' => 'Create and/or restore database backups.', 
-			'version' => 2, 
-			'author' => 'Ryan Cramer', 
-			'icon' => 'database', 
-			'permission' => 'db-backup', 
-			'permissions' => array(
-				'db-backup' => 'Manage database backups (recommended for superuser only)',
-				),
-			'page' => array(
-				'name' => 'db-backups', 
-				'parent' => 'setup', 
-				'title' => 'DB Backups',
-				),
-			'requires' => 'ProcessWire>=' . self::minVersion,
-			); 
-	}
-
 	/**
 	 * Instance of WireDatabaseBackup	
 	 *
@@ -422,7 +396,7 @@ class ProcessDatabaseBackups extends Process {
 
 	public function ___install() {
                 // check that they have the required PW version
-                if(version_compare($this->wire('config')->version, self::minVersion , '<')) {
+                if(version_compare($this->wire('config')->version, '2.4.15', '<')) {
                         throw new WireException("This module requires ProcessWire " . self::minVersion . " or newer."); 
                 }
 		parent::___install();
