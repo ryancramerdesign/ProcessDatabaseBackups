@@ -1,7 +1,7 @@
 {
 	"title": "Database Backups",
 	"summary": "Create and/or restore database backups from ProcessWire admin.", 
-	"version": 2, 
+	"version": 3, 
 	"author": "Ryan Cramer", 
 	"icon": "database", 
 	"requires": "ProcessWire>=2.4.15", 
@@ -13,5 +13,9 @@
 		"name": "db-backups",
 		"parent": "setup", 
 		"title": "DB Backups"
-	}
+	},
+	"nav": [
+		{ "url": "backup/", "label": "New Backup", "icon": "plus-circle" },
+		{ "url": "upload/", "label": "Upload", "icon": "upload" }
+	]
 }
