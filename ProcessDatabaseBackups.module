@@ -26,6 +26,12 @@ class ProcessDatabaseBackups extends Process {
 	protected $labels = array();
 
 	/**
+	 * Name of the GET param used for identifying selected backup files
+	 *
+	 */
+    protected $httpGetIdName = 'pwdbbuid';
+	
+	/**
 	 * This is an optional initialization function called before any execute functions.
 	 *
 	 */
@@ -73,7 +79,7 @@ class ProcessDatabaseBackups extends Process {
 	}
 
 	protected function getFile() {
-		$id = $this->input->get('id'); 
+		$id = $this->input->get($this->httpGetIdName); 
 		if(is_null($id)) throw new WireException("No file specified"); 
 		$files = $this->getBackupFiles();
 		if(!isset($files[$id])) throw new WireException("Unrecognized file"); 
@@ -110,7 +116,7 @@ class ProcessDatabaseBackups extends Process {
 			if($numTables && !count($file['tables'])) $numTables .= " " . $this->_('(all)'); 
 			
 			$table->row(array(
-				$file['basename'] => "./info/?id=$id",
+				$file['basename'] => "./info/?{$this->httpGetIdName}=$id",
 				$file['description'], 
 				wireRelativeTimeStr($file['time'] ? $file['time'] : $file['mtime']), 
 				$numTables, 
@@ -212,17 +218,17 @@ class ProcessDatabaseBackups extends Process {
 
 		$actions = array(
 			array(
-				'href' => "../download/?id=$file[id]",
+				'href' => "../download/?{$this->httpGetIdName}=$file[id]",
 				'label' =>  $this->labels['download'], 
 				'icon' => 'download'
 			), 
 			array(
-				'href' => "../delete/?id=$file[id]",
+				'href' => "../delete/?{$this->httpGetIdName}=$file[id]",
 				'label' => $this->labels['delete'], 
 				'icon' => 'trash-o'
 			),
 			array(
-				'href' => "../restore/?id=$file[id]",
+				'href' => "../restore/?{$this->httpGetIdName}=$file[id]",
 				'label' => $this->labels['restore'],
 				'icon' => 'life-ring'
 			)
@@ -326,7 +332,7 @@ class ProcessDatabaseBackups extends Process {
 
 	public function ___executeDownload() {
 		$file = $this->getFile();
-		wireSendFile($file['pathname'], array('forceDownload' => true)); 
+		wireSendFile($file, array('forceDownload' => true));
 	}
 
 	public function ___executeDelete() {
@@ -348,7 +354,7 @@ class ProcessDatabaseBackups extends Process {
 		} else {
 
 			$form = $this->modules->get('InputfieldForm'); 
-			$form->action = "./?id=$file[id]";
+			$form->action = "./?{$this->httpGetIdName}=$file[id]";
 			$form->description = sprintf($this->_('Delete %s?'), $file['basename']); 
 			$f = $this->modules->get('InputfieldCheckbox'); 
 			$f->attr('name', 'delete_confirm');
@@ -381,7 +387,7 @@ class ProcessDatabaseBackups extends Process {
 		} else {
 
 			$form = $this->modules->get('InputfieldForm'); 
-			$form->action = "./?id=$file[id]";
+			$form->action = "./?{$this->httpGetIdName}=$file[id]";
 			$form->description = $this->_('Warning: the current database will be destroyed and replaced (this has potential to break your site!)');
 			$f = $this->modules->get('InputfieldCheckbox'); 
 			$f->attr('name', 'restore_confirm');
