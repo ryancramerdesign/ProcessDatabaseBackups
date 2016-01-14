@@ -332,6 +332,11 @@ class ProcessDatabaseBackups extends Process {
 
 	public function ___executeDownload() {
 		$file = $this->getFile();
+	        if(!class_exists('wireTempDir') || !class_exists('ZipArchive')) {
+			// fall back to sending uncompressed file
+			wireSendFile($file['pathname'], array('forceDownload' => true));
+			return;
+	        }
 		$tmpDir = new wireTempDir($this->sanitizer->pageName(rtrim($file['basename'], '.sql')), array('maxAge' => 300));
 		$zipFile = $tmpDir->get() . rtrim($file['basename'], '.sql') . '-sqldump.zip';
 		if(file_exists($zipFile)) unlink($zipFile);
