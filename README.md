@@ -11,13 +11,13 @@ This tool provides an admin interface for the following database backup function
 - Managing existing backups (downloading, deleting, etc.)
 
 This is meant to be used as a secondary backup tool, not a primary one. It uses
-ProcessWire 2.5 WireDatabaseBackups class to perform backups and restores. If 
+ProcessWire 3.x WireDatabaseBackups class to perform backups and restores. If 
 you are working with really large files, it may be better to perform that task
 directly in PhpMyAdmin or the native MySQL client. 
 
-Requires ProcessWire 2.4.14 or newer.
+Requires ProcessWire 3.0.62 or newer.
 
----
+License: MPL 2.0
 
-Copyright 2014 by Ryan Cramer
+Copyright 2017 by Ryan Cramer
 
