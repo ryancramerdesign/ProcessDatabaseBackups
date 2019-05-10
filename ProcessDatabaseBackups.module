@@ -45,6 +45,7 @@ class ProcessDatabaseBackups extends Process {
 			"backup" => $this->_('Backup'), 
 			"delete" => $this->_('Delete'),
 			"restore" => $this->_('Restore'),
+			"cancel" => $this->_('Cancel'),
 			"upload" => $this->_('Upload'), 
 			"description" => $this->_('Description'), 
 			"valid" => $this->_('Valid?'), 
@@ -555,7 +556,12 @@ class ProcessDatabaseBackups extends Process {
 		if($this->input->post('submit_restore')) {
 
 			if($this->input->post('restore_confirm') && file_exists($file['pathname'])) { 
-				$success = $this->backup->restore($file['basename']); 
+				$options = array(
+					'allowDrop' => true, 
+					'maxSeconds' => 3600
+				);
+				if($this->input->post('restore_drop')) $options['dropAll'] = true; 
+				$success = $this->backup->restore($file['basename'], $options); 
 				if($success) {
 					$this->message(sprintf($this->_('Restored: %s'), "$file[basename]")); 
 					$this->session->redirect('../'); 
@@ -575,11 +581,27 @@ class ProcessDatabaseBackups extends Process {
 			$f = $this->modules->get('InputfieldCheckbox'); 
 			$f->attr('name', 'restore_confirm');
 			$f->label = sprintf($this->_('Restore %s?'), $file['basename']); 
-			$form->add($f); 
+			$form->add($f);
+		
+			if(method_exists($this->backup, 'dropAllTables')) {
+				/** @var InputfieldCheckbox $f */
+				$f = $this->modules->get('InputfieldCheckbox');
+				$f->attr('name', 'restore_drop');
+				$f->label = $this->_('Drop all tables from current database before restore?');
+				$f->showIf = 'restore_confirm=1';
+				$form->add($f);
+			}
 			
 			/** @var InputfieldSubmit $f */
 			$f = $this->modules->get('InputfieldSubmit'); 
 			$f->attr('name', 'submit_restore'); 
+			$form->add($f);
+			
+			/** @var InputfieldButton $f */
+			$f = $this->modules->get('InputfieldButton');
+			$f->attr('value', $this->labels['cancel']); 
+			$f->href = '../';
+			$f->setSecondary(true);
 			$form->add($f); 
 			
 			return $form->render();
