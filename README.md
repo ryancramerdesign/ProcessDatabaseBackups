@@ -19,5 +19,5 @@ Requires ProcessWire 3.0.62 or newer.
 
 License: MPL 2.0
 
-Copyright 2017 by Ryan Cramer
+Copyright 2021 by Ryan Cramer
 
