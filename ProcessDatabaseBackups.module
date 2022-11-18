@@ -75,7 +75,7 @@ class ProcessDatabaseBackups extends Process {
 	 */
 	protected function backupPath($short = false) {
 		$path = $this->backup->getPath();
-		if($short) $path = str_replace($this->wire('config')->paths->root, '/', $path); 
+		if($short) $path = str_replace($this->wire()->config->paths->root, '/', $path); 
 		return $path;
 	}
 
@@ -109,7 +109,7 @@ class ProcessDatabaseBackups extends Process {
 	 */
 	protected function getFileActions(array $file) {
 		
-		$url = $this->wire('page')->url();
+		$url = $this->wire()->page->url();
 		
 		$actions = array(
 			'info' => array(
@@ -240,7 +240,7 @@ class ProcessDatabaseBackups extends Process {
 				$this->nowrap($basename) => "./info/?id=$id",
 				$this->tdSort(strtotime($time), wireRelativeTimeStr($time, true)), 
 				$this->nowrap($numTables), 
-				$this->tdSort($file['numInserts'], number_format($file['numInserts'])), 
+				$this->tdSort($file['numInserts'], number_format((float) $file['numInserts'])), 
 				$this->tdSort($file['size'], wireBytesStr($file['size'])), 
 				$this->nowrap(implode(' ', $actions)), 
 				$checkbox->render(),
@@ -330,6 +330,7 @@ class ProcessDatabaseBackups extends Process {
 		if($input->post('submit_upload_file')) {
 			$form->processInput($input->post); 
 			foreach($f->value as $pagefile) {
+				/** @var Pagefile $pagefile */
 				$this->message(sprintf($this->_('Added file: %s'), $pagefile->basename)); 
 			}
 			$this->session->redirect($this->wire()->page->url); 
